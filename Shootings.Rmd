@@ -1,0 +1,203 @@
+---
+title: "NYPD Shooting"
+author: "Andrew Martz"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(tidyverse)
+```
+```{r include=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+```{r Intro, echo=FALSE, results='markup', tidy.opts=list(width.cutoff=60)}
+"The paper will be analyzing data gathered from the NYPD from the period of 2006-2023"
+"the focus of the paper will be of the demographics of the perpetrators and victims."
+```
+
+
+```{r collect_data}
+##Gather data for shootings
+url_in <- "https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic"
+file_names <- c("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+```
+
+```{r data_manipulation}
+#Read in file and clean data
+shooting<-readr::read_csv(file_names)
+
+clean<-shooting %>% select('STATISTICAL_MURDER_FLAG':'VIC_RACE')
+
+#Age
+Age<- clean%>% select('PERP_AGE_GROUP', 'VIC_AGE_GROUP')
+Age<-arrange(Age, desc(Age))
+Vic_Tally<-Age|>count(VIC_AGE_GROUP)
+Perp_Tally<-Age|>count(PERP_AGE_GROUP)
+Perp_Tally<-filter(Perp_Tally, PERP_AGE_GROUP!='1020')
+Perp_Tally<-filter(Perp_Tally, PERP_AGE_GROUP!='1028')
+Perp_Tally<-filter(Perp_Tally, PERP_AGE_GROUP!='940')
+Perp_Tally<-filter(Perp_Tally, PERP_AGE_GROUP!='224')
+Vic_Tally<-filter(Vic_Tally, VIC_AGE_GROUP!='1022')
+Vic_Tally<-rename(Vic_Tally, Vic_Count=n)
+Perp_Tally<-rename(Perp_Tally, Perp_Count=n)
+Vic_Tally <- Vic_Tally %>% add_row()
+Vic_Tally $VIC_AGE_GROUP <- Vic_Tally $VIC_AGE_GROUP %>% replace_na("(null)")
+Vic_Tally $Vic_Count <- Vic_Tally $Vic_Count %>% replace_na(0)
+
+Vic_Tally<-arrange(Vic_Tally, desc(Vic_Tally))
+Perp_Tally<-arrange(Perp_Tally, desc(Perp_Tally))
+
+Total_by_Age<-bind_cols(Perp_Tally, Vic_Tally)
+Total_by_Age<-rename(Total_by_Age, Age=PERP_AGE_GROUP)
+Total_by_Age<-Total_by_Age|>select(-('VIC_AGE_GROUP'))
+
+
+#Sex
+Sex<- clean%>% select('PERP_SEX', 'VIC_SEX')
+Sex<-arrange(Sex, desc(Sex))
+Vic_S_Tally<-Sex|>count(VIC_SEX)
+Perp_S_Tally<-Sex|>count(PERP_SEX)
+Vic_S_Tally <- Vic_S_Tally %>% add_row()
+Vic_S_Tally $VIC_SEX <- Vic_S_Tally $VIC_SEX %>% replace_na("(null)")
+Vic_S_Tally <- Vic_S_Tally %>% add_row()
+Vic_S_Tally $n <- Vic_S_Tally $n %>% replace_na(0)
+
+Vic_S_Tally<-arrange(Vic_S_Tally, desc(Vic_S_Tally))
+Perp_S_Tally<-arrange(Perp_S_Tally, desc(Perp_S_Tally))
+
+Perp_S_Tally<-rename(Perp_S_Tally, Perp_Count=n)
+
+
+Total_Sex<-bind_cols(Perp_S_Tally, Vic_S_Tally)
+Total_Sex<-rename(Total_Sex, Sex=PERP_SEX)
+Total_Sex<-rename(Total_Sex, Vic_Count=n)
+Total_Sex<-Total_Sex|>select(-('VIC_SEX'))
+
+#Race
+Race<- clean%>% select('PERP_RACE', 'VIC_RACE')
+Race<-arrange(Race, desc(Race))
+Vic_R_Tally<-Race|>count(VIC_RACE)
+Perp_R_Tally<-Race|>count(PERP_RACE)
+Vic_R_Tally <- Vic_R_Tally %>% add_row()
+Vic_R_Tally $VIC_RACE <- Vic_R_Tally $VIC_RACE %>% replace_na("(null)")
+Vic_R_Tally <- Vic_R_Tally %>% add_row()
+Vic_R_Tally $n <- Vic_R_Tally $n %>% replace_na(0)
+Vic_R_Tally<-arrange(Vic_R_Tally, desc(Vic_R_Tally))
+Perp_R_Tally<-arrange(Perp_R_Tally, desc(Perp_R_Tally))
+
+Perp_R_Tally<-rename(Perp_R_Tally, Perp_Count=n)
+
+
+Total_Race<-bind_cols(Perp_R_Tally, Vic_R_Tally)
+Total_Race<-rename(Total_Race, Race=PERP_RACE)
+Total_Race<-rename(Total_Race, Vic_Count=n)
+Total_Race<-Total_Race|>select(-('VIC_RACE'))
+
+```
+
+```{r Visualization}
+##Create simple Visualization
+
+#Age
+
+Age_Vis<-pivot_longer(Total_by_Age, Perp_Count:Vic_Count, names_to = 'Identity', values_to = 'Count')
+
+Age_Vis
+
+ggplot(Age_Vis, aes(x=Age, y=Count, fill=Identity))+
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_text(aes(label=Count), vjust=1.0, color="black", position=position_dodge(0.9), size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal()
+
+
+#Sex
+
+Sex_Vis<-pivot_longer(Total_Sex, Perp_Count:Vic_Count, names_to = 'Identity', values_to = 'Count')
+
+Sex_Vis
+
+ggplot(Sex_Vis, aes(x=Sex, y=Count, fill=Identity))+
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_text(aes(label=Count), vjust=1.0, color="black", position=position_dodge(0.9), size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal()
+
+#Race
+
+Race_Vis<-pivot_longer(Total_Race, Perp_Count:Vic_Count, names_to = 'Identity', values_to = 'Count')
+Race_Vis
+
+ggplot(Race_Vis, aes(y=Race, x=Count, fill=Identity))+
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_text(aes(label=Count), vjust=.5, color="black", position=position_dodge(0.9), size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal()
+
+```
+
+```{r Model}
+#Create a model for Age
+mod<-lm(Count~Age, data=Age_Vis)
+
+Age_Vis<-mutate(Age_Vis, pred=predict(mod))
+
+mod
+
+
+Final_data <- Age_Vis %>%
+  pivot_longer(cols = c(Count, pred), 
+               names_to = "Metric", 
+               values_to = "Value")
+
+filtered_data <- Age_Vis %>%
+  filter(Identity == "Perp_Count" | Identity == "Vic_Count")
+
+# Create the plot
+ggplot(filtered_data, aes(x = Age, y = Count, fill = Identity)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    geom_text(aes(label = format(Count, digits = 3, nsmall = 0)), 
+              position = position_dodge(0.9), 
+              vjust = -0.5, size = 3.5) +
+    scale_fill_brewer(palette = "Set2") +
+    geom_label(data = filtered_data %>% filter(Identity == "Vic_Count"), 
+               aes(x = Age, y = pred, label = format(pred, digits = 3, nsmall = 0)), 
+               color = "black", 
+               show.legend = FALSE, 
+               nudge_x = 0.2, 
+               size = 2.3) +
+    labs(title = "Victim and Perpetrator Counts by Age Group", 
+         x = "Age Group", 
+         y = "Count") +
+    theme_minimal()
+
+
+
+
+```
+```{r Analysis, echo=FALSE, message=TRUE, results='markup', tidy.opts=list(width.cutoff=60)}
+"From the data that is presented, it can be determined that the shooting violence that has"
+"be recorded by the NYPD is primarily conducted by black males between the ages of 18-44,"
+"and they are also the most like to be victims of the violence as well."
+
+```
+
+```{r bias, echo=FALSE, results='markup', tidy.opts=list(width.cutoff=60)}
+"There a possibility of bias within the data as a result of reporting bias. It appears that"
+"there are a not insignificant amount of unknown data, particularly in regards to the"
+"perpetrator which could result in a slightly skewed bias within the data. In myself I would "
+"like to believe there is no significant bias; if anything some may arise in the belief that"
+"the data was conducted correctly and overlook potential issues that may have arose from"
+"human error."
+
+```
